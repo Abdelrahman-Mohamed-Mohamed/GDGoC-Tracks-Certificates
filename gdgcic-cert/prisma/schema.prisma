@@ -1,0 +1,112 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Core models for GDG on Campus CIC Certificate Automation
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String?
+  passwordHash   String
+  role           Role     @default(LEAD)
+  trackId        String?
+  track          Track?   @relation(fields: [trackId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Track {
+  id            String        @id @default(cuid())
+  slug          String        @unique
+  name          String
+  emailSender   String?       // optional override sender for this track
+  certificates  Certificate[]
+  recipients    Recipient[]
+  serials       Serial[]
+  users         User[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Recipient {
+  id           String      @id @default(cuid())
+  name         String
+  email        String
+  trackId      String
+  track        Track       @relation(fields: [trackId], references: [id])
+  certificates Certificate[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([email, trackId])
+}
+
+model Certificate {
+  id               String       @id @default(cuid())
+  trackId          String
+  track            Track        @relation(fields: [trackId], references: [id])
+  recipientId      String?
+  recipient        Recipient?   @relation(fields: [recipientId], references: [id])
+  serialId         String?      @unique
+  serial           Serial?      @relation(fields: [serialId], references: [id])
+  templatePath     String       // path or URL to template
+  outputPath       String?      // path or URL to generated certificate
+  status           CertStatus   @default(DRAFT)
+  sentAt           DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  emailLogs        EmailLog[]
+}
+
+model Serial {
+  id           String      @id @default(cuid())
+  value        String      @unique
+  year         Int
+  trackId      String
+  track        Track       @relation(fields: [trackId], references: [id])
+  index        Int         // XXXX part
+  certificate  Certificate?
+  createdAt    DateTime    @default(now())
+}
+
+model EmailLog {
+  id             String       @id @default(cuid())
+  certificateId  String
+  certificate    Certificate  @relation(fields: [certificateId], references: [id])
+  recipientEmail String
+  status         EmailStatus
+  providerId     String?
+  error          String?
+  createdAt      DateTime     @default(now())
+}
+
+enum Role {
+  LEAD
+  ADMIN
+}
+
+enum CertStatus {
+  DRAFT
+  GENERATED
+  SENT
+  FAILED
+}
+
+enum EmailStatus {
+  QUEUED
+  SENT
+  FAILED
+}
